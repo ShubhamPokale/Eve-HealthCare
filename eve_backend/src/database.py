@@ -1,7 +1,11 @@
+from collections.abc import AsyncGenerator
 from datetime import datetime
 
 from sqlalchemy import DateTime, MetaData, func
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from src.config import settings
 
 POSTGRES_INDEXES_NAMING_CONVENTION = {
     "ix": "%(column_0_label)s_idx",
@@ -28,3 +32,12 @@ class TimestampMixin:
         onupdate=func.now(),
         nullable=False,
     )
+
+
+engine = create_async_engine(str(settings.DATABASE_URL), pool_pre_ping=True)
+SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with SessionFactory() as session:
+        yield session
