@@ -10,6 +10,10 @@ from src.auth.config import auth_settings
 from src.auth.exceptions import InvalidCredentials
 from src.auth.models import User
 
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from src.auth.schemas import UserCreate
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -50,3 +54,24 @@ def decode_access_token(token: str) -> UUID:
 
 async def get_by_id(session: AsyncSession, user_id: UUID) -> User | None:
     return await session.get(User, user_id)
+
+
+async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
+    stmt = select(User).where(User.email == email)
+    return await session.scalar(stmt)
+
+async def create_user(session: AsyncSession, user_in: UserCreate) -> User:
+    hashed_password = hash_password(user_in.password)
+    new_user = User(
+        email=user_in.email, 
+        password_hash=hashed_password
+    )
+    session.add(new_user)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        # Raised if the unique constraint on the email column is violated
+        raise ValueError("Email already registered")
+    
+    return new_user
